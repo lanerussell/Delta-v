@@ -6,6 +6,7 @@ and up-to-date as possible by generating wiki entries directly from source code.
 
 import yaml
 from any_yaml import Loader, Tagged
+from jinja2 import Environment, FileSystemLoader
 
 
 def read_yaml(file_path: str, encoding: str = "utf-8") -> list:
@@ -33,8 +34,11 @@ class Chem:
     Generic class to handle effects and conditions
     common to all different types of chems
     """
+
     def __init__(self):
-        self.chems = []
+        self.chem_effects_raw = []
+        self.chem_recipes_raw = []
+        self.chems = {}
         self.rendered_wiki_block = ""
 
     def generate_effect_string(self, effect: Tagged) -> str:
@@ -57,16 +61,24 @@ class Chem:
                 conditions = effect.get("conditions", [])
 
                 for damage_type, damage_value in damage_types.items():
-                    effect_string += (
-                        f"{'Heals ' if damage_value <= 0 else 'Deals '}"
-                        f"{abs(damage_value)} {damage_type} "
-                    )
+                    if damage_value <= 0:
+                        effect_string += (
+                            f"Heals {{{{DMG|{damage_type}|+|{abs(damage_value)}}}}} "
+                        )
+                    else:
+                        effect_string += (
+                            f"Deals {{{{DMG|{damage_type}|-|{abs(damage_value)}}}}} "
+                        )
 
                 for damage_group, damage_value in damage_groups.items():
-                    effect_string += (
-                        f"{'Heals ' if damage_value <= 0 else 'Deals '}"
-                        f"{abs(damage_value)} {damage_group} "
-                    )
+                    if damage_value <= 0:
+                        effect_string += (
+                            f"Heals {{{{DMG|{damage_group}|+|{abs(damage_value)}}}}} "
+                        )
+                    else:
+                        effect_string += (
+                            f"Deals {{{{DMG|{damage_group}|-|{abs(damage_value)}}}}} "
+                        )
 
                 for condition in conditions:
                     effect_string += self.generate_sub_condition_string(condition)
@@ -329,58 +341,124 @@ class Chem:
 
         return condition_string
 
+    def construct_chem_effect_bodies(self):
+        """
+        Construct effect bodies for all chems
+        """
+        for chem in self.chem_effects_raw:
+            self.construct_single_chem_effect_body(chem)
+
+    def construct_single_chem_effect_body(self, chem: dict):
+        """
+        Construct effect body for a single chem
+
+        :param chem: A chem object describing its effects
+        :type chem: dict
+        """
+        chem_name = chem.get("id")
+        chem_color = chem.get("color", "").upper()
+        if not chem_name:
+            return
+        if chem.get("abstract"):
+            return
+
+        chem_metabolisms = chem.get("metabolisms", {})
+        effects = []
+        effects.extend(chem_metabolisms.get("Medicine", {}).get("effects", []))
+        effects.extend(chem_metabolisms.get("Poison", {}).get("effects", []))
+
+        body = ""
+        for effect in effects:
+            effect_string = self.generate_effect_string(effect)
+            if not effect_string:
+                continue
+            body += f"{effect_string}<br>"
+
+        self.chems[chem_name] = {
+            "name": chem_name,
+            "color": chem_color,
+            "recipe": None,
+            "effects": body,
+        }
+
+    def construct_chem_recipe_bodies(self):
+        """
+        Construct recipe bodies for all chems
+        """
+        for chem in self.chem_recipes_raw:
+            self.construct_single_chem_recipe_body(chem)
+
+    def construct_single_chem_recipe_body(self, chem: dict):
+        """
+        Construct recipe body for a single chem
+
+        :param chem: A chem object describing its recipe
+        :type chem: dict
+        """
+        chem_name = chem.get("id")
+        min_temp = chem.get("minTemp")
+
+        if not chem_name or chem_name not in self.chems:
+            return
+
+        recipe_string = "Mix "
+        recipe_string += f"above {min_temp} K<br>" if min_temp else "<br>"
+        for reactant, reactant_info in chem.get("reactants", {}).items():
+            recipe_string += f"{reactant_info.get("amount", "?")} part {reactant}<br>"
+
+        self.chems[chem_name]["recipe"] = recipe_string
+
 
 class Medicine(Chem):
     """
     Represents all medicine chems
     """
+
     def __init__(self):
         super().__init__()
-        self.medicine_effects = []
 
         self.read_in_medicine_effect_files()
-        self.construct_medicine_effect_body()
+        self.read_in_medicine_recipe_files()
+
+        self.construct_chem_effect_bodies()
+        self.construct_chem_recipe_bodies()
 
     def read_in_medicine_effect_files(self):
         """
-        Reads in medicine files describing the effects they have
+        Reads in medicine files describing their effects
         """
-        self.medicine_effects.extend(
+        self.chem_effects_raw.extend(
             read_yaml(file_path="Resources/Prototypes/Reagents/medicine.yml")
         )
-        self.medicine_effects.extend(
+        self.chem_effects_raw.extend(
             read_yaml(file_path="Resources/Prototypes/_DV/Reagents/medicine.yml")
         )
 
-    def construct_medicine_effect_body(self):
+    def read_in_medicine_recipe_files(self):
         """
-        Construct wiki body for all medicines
+        Reads in medicine files describing their recipes
         """
-        for chem in self.medicine_effects:
-            self.rendered_wiki_block += (
-                f"\n\n{self.construct_single_medicine_effect_body(chem)}"
-            )
-
-    def construct_single_medicine_effect_body(self, chem: dict):
-        """
-        Construct wiki body for a single medicine
-
-        :param chem: A chem object describing its effects
-        :type chem: dict
-        """
-        effects = chem.get("metabolisms", {}).get("Medicine", {}).get("effects", [])
-        body = (
-            f"------------------------------------------------\n"
-            f"{chem.get("id", "unknown_chem")}\n"
+        self.chem_recipes_raw.extend(
+            read_yaml(file_path="Resources/Prototypes/Recipes/Reactions/medicine.yml")
         )
-        for effect in effects:
-            effect_string = self.generate_effect_string(effect)
-            if not effect_string:
-                continue
-            body += f"{effect_string}\n"
-
-        print(body)
+        self.chem_recipes_raw.extend(
+            read_yaml(
+                file_path="Resources/Prototypes/_DV/Recipes/Reactions/medicine.yml"
+            )
+        )
 
 
 if __name__ == "__main__":
-    medicine_wiki = Medicine()
+    medicines = Medicine()
+    sorted_medicines = dict(sorted(medicines.chems.items()))
+
+    environment = Environment(
+        loader=FileSystemLoader("Tools/wiki_generators/templates")
+    )
+    template = environment.get_template("chem_wiki_section.j2")
+    output = template.render(
+        wiki_section="Medicine", chem_list=sorted_medicines.values()
+    )
+    print(output)
+
+    pass
