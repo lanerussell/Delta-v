@@ -4,10 +4,13 @@
 ! scope='col' class='sortable'   style='width:15%; background-color:#CEA10540; border: 1px solid black;'| Name
 ! scope='col' class='unsortable' style='width:20%; background-color:#CEA10540; border: 1px solid black;'| Formulas
 ! scope='col' class='unsortable' style='width:50%; background-color:#CEA10540; border: 1px solid black;'| Effects
+! scope='col' class='unsortable' style='width:15%; background-color:#CEA10540; border: 1px solid black;'| Rate
 |-{% endraw %}
 {% for chem in chem_list -%}
 ! {% raw %}{{{% endraw %}anchor|{{ chem.name }}{% raw %}}}<span style='background-color:#ACEAEF; color:{% endraw %}{{ chem.color }}'>▮</span> [[#{{ chem.name }}|{{ chem.name }}]]
-| [[File:Beaker.png]] {{ chem.recipe }}
+| {{ chem.recipe }}
 | {{ chem.effects }}
+| {{ chem.metabolic_rate }}
 |-
-{% endfor %}
+{% endfor -%}
+|{% raw %}}{% endraw %}
