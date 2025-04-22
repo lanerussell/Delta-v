@@ -710,7 +710,7 @@ class ChemRecipe:
             f"{self.icon_map.get(recipe.get('requiredMixerCategories', ["Mix"])[0])} "
         )
         recipe_dict["prefix"] += f"above {min_temp} K<br>" if min_temp else "<br>"
-        recipe_dict["reactants"] = recipe.get("reactants", {})
+        recipe_dict["reactants"] = dict(sorted(recipe.get("reactants", {}).items()))
 
         for chem_id in products.keys():
             if not self.chems_recipes.get(chem_id):
@@ -734,7 +734,7 @@ class ChemRecipe:
         recipe_dict = {}
         recipe_dict["prefix"] = f"{self.icon_map.get("Mix")} "
         recipe_dict["prefix"] += f"above {min_temp} K<br>" if min_temp else "<br>"
-        recipe_dict["reactants"] = recipe.get("reactants", {})
+        recipe_dict["reactants"] = dict(sorted(recipe.get("reactants", {}).items()))
 
         if not self.chems_recipes.get(chem_id):
             self.chems_recipes[chem_id] = {}
@@ -1083,7 +1083,7 @@ if __name__ == "__main__":
             full_body = chem_names.replace_id_with_real_name(chem_dict, full_body)
 
     if "$$" in full_body:
-        print(full_body)    # todo: remove
+        print(full_body)
         raise NotImplementedError("Not all chem ID placeholders replaced.")
 
     print(full_body)
