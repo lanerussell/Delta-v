@@ -1,3 +1,4 @@
+fluent.syntax
 Jinja2
 PyYAML
 wrapt

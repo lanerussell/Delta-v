@@ -7,7 +7,7 @@
 ! scope='col' class='unsortable' style='width:15%; background-color:#CEA10540; border: 1px solid black;'| Rate
 |-{% endraw %}
 {% for chem in chem_list -%}
-! {% raw %}{{{% endraw %}anchor|{{ chem.name }}{% raw %}}}<span style='background-color:#ACEAEF; color:{% endraw %}{{ chem.color }}'>▮</span> [[#{{ chem.name }}|{{ chem.name }}]]
+! {% raw %}{{{% endraw %}anchor|{{ chem.id_placeholder }}{% raw %}}}<span style='background-color:#ACEAEF; color:{% endraw %}{{ chem.color }}'>▮</span> [[#{{ chem.id_placeholder }}|{{ chem.id_placeholder }}]]
 | {{ chem.recipe }}
 | {{ chem.effects }}
 | {{ chem.metabolic_rate }}

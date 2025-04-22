@@ -6,6 +6,8 @@ and up-to-date as possible by generating wiki entries directly from source code.
 
 import yaml
 from any_yaml import Loader, Tagged
+from fluent.syntax import parse
+from fluent.syntax.ast import Message
 from jinja2 import Environment, FileSystemLoader
 
 
@@ -27,6 +29,126 @@ def read_yaml(file_path: str, encoding: str = "utf-8") -> list:
         except Exception as e:
             print(f"Failed to parse yaml file {file_path} with error: {e}")
             return []
+
+
+class ChemName:
+    """
+    Class to handle mapping of chem IDs to names in ftl files
+    """
+
+    def __init__(self):
+        self.chem_ftls_raw = []
+        self.chems_names = {}
+
+        self.read_in_chem_ftl_files()
+
+    def read_in_chem_ftl_files(self):
+        """
+        Reads in chem files describing recipes
+        """
+        prefix = "Resources/Locale/en-US/"
+        chem_ftl_files = [
+            f"{prefix}reagents/meta/biological.ftl",
+            f"{prefix}reagents/meta/botany.ftl",
+            f"{prefix}reagents/meta/chemicals.ftl",
+            f"{prefix}reagents/meta/cleaning.ftl",
+            f"{prefix}reagents/meta/elements.ftl",
+            f"{prefix}reagents/meta/fun.ftl",
+            f"{prefix}reagents/meta/gases.ftl",
+            f"{prefix}reagents/meta/medicine.ftl",
+            f"{prefix}reagents/meta/narcotics.ftl",
+            f"{prefix}reagents/meta/physical-desc.ftl",
+            f"{prefix}reagents/meta/pyrotechnic.ftl",
+            f"{prefix}reagents/meta/toxins.ftl",
+            f"{prefix}reagents/meta/consumable/drink/alcohol.ftl",
+            f"{prefix}reagents/meta/consumable/drink/drinks.ftl",
+            f"{prefix}reagents/meta/consumable/drink/juice.ftl",
+            f"{prefix}reagents/meta/consumable/drink/soda.ftl",
+            f"{prefix}reagents/meta/consumable/food/condiments.ftl",
+            f"{prefix}reagents/meta/consumable/food/food.ftl",
+            f"{prefix}reagents/meta/consumable/food/ingredients.ftl",
+            f"{prefix}_DV/reagents/meta/biological.ftl",
+            f"{prefix}_DV/reagents/meta/fun.ftl",
+            f"{prefix}_DV/reagents/meta/consumable/drink/drinks.ftl",
+            f"{prefix}_DV/reagents/meta/consumable/drink/alcohol.ftl",
+            f"{prefix}_DV/reagents/meta/consumable/food/condiments.ftl",
+            f"{prefix}_DV/reagents/meta/medicine.ftl",
+            f"{prefix}_NF/reagents/meta/consumable/drink/drinks.ftl",
+            f"{prefix}_NF/reagents/meta/consumable/food/ingredients.ftl",
+            f"{prefix}_Floof/reagents/meta/medicine.ftl",
+            f"{prefix}_Funkystation/reagents/meta/medicine.ftl",
+            f"{prefix}_Funkystation/reagents/meta/consumable/food/ingredients.ftl",
+            f"{prefix}nyanotrasen/reagents/meta/consumable/drink/drink.ftl",
+            f"{prefix}nyanotrasen/reagents/meta/consumable/food/ingredients.ftl",
+            f"{prefix}nyanotrasen/kitchen/deep-fryer-component.ftl",
+        ]
+
+        for chem_ftl_file in chem_ftl_files:
+            with open(chem_ftl_file, "r", encoding="utf-8-sig") as f:
+                parsed_file = parse(f.read()).body
+                for message in parsed_file:
+                    self.transform_ftl_to_dict(message)
+
+    def transform_ftl_to_dict(self, ftl_object: Message):
+        """
+        _summary_
+
+        :param ftl_object: fluent object containing info about a single chem
+        :type ftl_object: fluent.syntax.ast.Message
+        """
+        if not isinstance(ftl_object, Message):
+            return
+        if not ftl_object.id.name.startswith("reagent-name-"):
+            return
+
+        chem_name = ftl_object.id.name
+        chem_real_name = ftl_object.value.elements[0].value
+
+        if not self.chems_names.get(chem_name):
+            self.chems_names[chem_name] = {
+                "name": chem_name,
+                "real_name": f"{chem_real_name[0].upper()}{chem_real_name[1:]}",
+            }
+
+    def get_real_name(self, chem_name: str) -> str:
+        """
+        Returns a chem's real name given its "reagent-name-X" name
+
+        :param chem_name: Chem name such as "reagent-name-hemocyanin-blood"
+        :type chem_name: str
+        :raises NotImplementedError: Raises NotImplementedError if chem_name not found
+        :return: Real name of chem, such as "Blue blood"
+        :rtype: str
+        """
+        chem = self.chems_names.get(chem_name)
+        if not chem:
+            raise NotImplementedError(f"Could not find a chem for {chem_name}")
+
+        return chem["real_name"]
+
+    def replace_id_with_real_name(self, chem: dict, source_string: str) -> str:
+        """
+        Replaces all instances of $$chem["id"]$$
+        in source_string with the chem's real name
+
+        :param chem: Dictionary containing info about the chem
+        :type chem: dict
+        :param source_string: The string on which to run the replacment
+        :type source_string: str
+        :return: Updated string
+        :rtype: str
+        """
+
+        if not chem["name"].startswith("reagent-name-"):
+            # for some reason, some prototypes do not contain a proper reagent-name-,
+            # so just use the "name" they already have
+            return source_string.replace(
+                f"$${chem["id"]}$$", f"{chem["name"][0].upper()}{chem["name"][1:]}"
+            )
+
+        return source_string.replace(
+            f"$${chem["id"]}$$", self.get_real_name(chem["name"])
+        )
 
 
 class Chem:
@@ -87,11 +209,11 @@ class Chem:
                 effect_string += self.condition_shim(effect)
 
             case "AdjustReagent":
+                reagent_id = effect.get("reagent")
                 reagent_amount = effect.get("amount")
-                reagent_name = effect.get("reagent")
                 probability = effect.get("probability")
 
-                if not reagent_amount or not reagent_name:
+                if not reagent_amount or not reagent_id:
                     return ""
 
                 if probability:
@@ -100,12 +222,14 @@ class Chem:
                 if reagent_amount >= 0:
                     effect_string += "add " if probability else "Adds "
                     effect_string += (
-                        f"{abs(reagent_amount)}u of {reagent_name} to the solution "
+                        f"{abs(reagent_amount)}u of "
+                        f"$${reagent_id}$$ to the solution "
                     )
                 elif reagent_amount < 0:
                     effect_string += "remove " if probability else "Removes "
                     effect_string += (
-                        f"{abs(reagent_amount)}u of {reagent_name} from the solution "
+                        f"{abs(reagent_amount)}u of "
+                        f"$${reagent_id}$$ from the solution "
                     )
                 else:
                     return ""
@@ -341,12 +465,14 @@ class Chem:
         condition_string = ""
         match condition.tag:
             case "ReagentThreshold":
-                specific_reagent = condition.get("reagent")
-                if specific_reagent:
+                reagent_id = condition.get("reagent")
+
+                if reagent_id:
                     condition_string += (
                         f"when there's at least {condition.get("min", "?")}u "
-                        f"of {specific_reagent} present "
+                        f"of $${reagent_id}$$ present "
                     )
+
                 else:
                     condition_string += (
                         f"when there's at least {condition.get("min", "?")}u "
@@ -446,10 +572,11 @@ class Chem:
         :param chem: A chem object describing its effects
         :type chem: dict
         """
-        chem_name = chem.get("id")
+        chem_id = chem.get("id")
+        chem_name = chem.get("name")
         chem_color = chem.get("color", "").upper()
         metabolism_rate = None
-        if not chem_name:
+        if not chem_id:
             return
         if chem.get("abstract"):
             return
@@ -476,7 +603,9 @@ class Chem:
                 continue
             body += f"{effect_string}<br>"
 
-        self.chems[chem_name] = {
+        self.chems[chem_id] = {
+            "id": chem_id,
+            "id_placeholder": f"$${chem_id}$$",
             "name": chem_name,
             "color": chem_color,
             "recipe": None,
@@ -491,8 +620,8 @@ class Chem:
         :param recipes: Dictionary containing chem recipe strings in wiki format
         :type recipes: dict
         """
-        for chem_name, chem in self.chems.items():
-            chem["recipe"] = recipes.get(chem_name, {}).get("final_recipe", "None")
+        for chem_id, chem in self.chems.items():
+            chem["recipe"] = recipes.get(chem_id, {}).get("final_recipe", "None")
 
 
 class ChemRecipe:
@@ -583,14 +712,14 @@ class ChemRecipe:
         recipe_dict["prefix"] += f"above {min_temp} K<br>" if min_temp else "<br>"
         recipe_dict["reactants"] = recipe.get("reactants", {})
 
-        for chem_name in products.keys():
-            if not self.chems_recipes.get(chem_name):
-                self.chems_recipes[chem_name] = {}
+        for chem_id in products.keys():
+            if not self.chems_recipes.get(chem_id):
+                self.chems_recipes[chem_id] = {}
 
-            if self.chems_recipes[chem_name].get("special_recipes") is not None:
-                self.chems_recipes[chem_name]["special_recipes"].append(recipe_dict)
+            if self.chems_recipes[chem_id].get("special_recipes") is not None:
+                self.chems_recipes[chem_id]["special_recipes"].append(recipe_dict)
             else:
-                self.chems_recipes[chem_name]["special_recipes"] = [recipe_dict]
+                self.chems_recipes[chem_id]["special_recipes"] = [recipe_dict]
 
     def construct_basic_recipe_body(self, recipe: dict) -> dict:
         """
@@ -599,7 +728,7 @@ class ChemRecipe:
         :param chem: A chem object describing its recipe
         :type chem: dict
         """
-        chem_name = recipe.get("id")
+        chem_id = recipe.get("id")
         min_temp = recipe.get("minTemp")
 
         recipe_dict = {}
@@ -607,13 +736,13 @@ class ChemRecipe:
         recipe_dict["prefix"] += f"above {min_temp} K<br>" if min_temp else "<br>"
         recipe_dict["reactants"] = recipe.get("reactants", {})
 
-        if not self.chems_recipes.get(chem_name):
-            self.chems_recipes[chem_name] = {}
+        if not self.chems_recipes.get(chem_id):
+            self.chems_recipes[chem_id] = {}
 
-        if self.chems_recipes[chem_name].get("basic_recipes") is not None:
-            self.chems_recipes[chem_name]["basic_recipes"].append(recipe_dict)
+        if self.chems_recipes[chem_id].get("basic_recipes") is not None:
+            self.chems_recipes[chem_id]["basic_recipes"].append(recipe_dict)
         else:
-            self.chems_recipes[chem_name]["basic_recipes"] = [recipe_dict]
+            self.chems_recipes[chem_id]["basic_recipes"] = [recipe_dict]
 
     def construct_final_recipe_bodies(self, simple: bool):
         """
@@ -654,27 +783,29 @@ class ChemRecipe:
         recipe_body = recipe.get("prefix", "")
 
         if simple:
-            for reactant, value in recipe.get("reactants", {}).items():
-                recipe_body += f"{value.get("amount", "?")} part {reactant}"
+            for reactant_id, value in recipe.get("reactants", {}).items():
+                recipe_body += f"{value.get("amount", "?")} part $${reactant_id}$$"
                 recipe_body += "<sup>(catalyst)</sup>" if value.get("catalyst") else ""
                 recipe_body += "<br>"
             return recipe_body
 
-        for reactant, value in recipe.get("reactants", {}).items():
-            reactant_recipe = self.chems_recipes.get(reactant)
+        for reactant_id, value in recipe.get("reactants", {}).items():
+            reactant_recipe = self.chems_recipes.get(reactant_id)
             recipe_body += f"{value.get("amount", "?")} part "
             if reactant_recipe:
                 reactant_cataylst_str = (
-                    f"{reactant}"
+                    f"$${reactant_id}$$"
                     f"{'<sup>(catalyst)</sup>' if value.get('catalyst') else ''}"
                 )
-                recipe_body += f"{{{{Tooltip|[[#{reactant}|{reactant_cataylst_str}]]|"
-                recipe_body += self.chems_recipes[reactant].get(
+                recipe_body += (
+                    f"{{{{Tooltip|[[#$${reactant_id}$$|{reactant_cataylst_str}]]|"
+                )
+                recipe_body += self.chems_recipes[reactant_id].get(
                     "final_recipe_simple", "?"
                 )
                 recipe_body += "}}<br>"
             else:
-                recipe_body += f"{reactant}"
+                recipe_body += f"$${reactant_id}$$"
                 recipe_body += "<sup>(catalyst)</sup>" if value.get("catalyst") else ""
                 recipe_body += "<br>"
 
@@ -760,6 +891,7 @@ class Drinks(Chem):
             "Resources/Prototypes/Reagents/Consumable/Drink/juice.yml",
             "Resources/Prototypes/Reagents/Consumable/Drink/soda.yml",
             "Resources/Prototypes/Nyanotrasen/Reagents/Consumable/Drink/drinks.yml",
+            "Resources/Prototypes/_DV/Reagents/Consumable/Drink/alcohol.yml",
             "Resources/Prototypes/_DV/Reagents/Consumable/Drink/drinks.yml",
             "Resources/Prototypes/_NF/Reagents/Consumables/Drink/drinks.yml",
         ]
@@ -797,6 +929,8 @@ class Foods(Chem):
             f"{prefix}Reagents/Consumable/Food/condiments.yml",
             f"{prefix}Reagents/Consumable/Food/food.yml",
             f"{prefix}Reagents/Consumable/Food/ingredients.yml",
+            f"{prefix}_NF/Reagents/Consumables/ingredients.yml",
+            f"{prefix}_Funkystation/Reagents/Consumable/Food/ingredients.yml",
             f"{prefix}Nyanotrasen/Reagents/Consumable/Food/condiments.yml",
             f"{prefix}Nyanotrasen/Reagents/Consumable/Food/food.yml",
             f"{prefix}Nyanotrasen/Entities/Objects/Consumable/Food/ingredients.yml",
@@ -909,8 +1043,9 @@ class Toxins(Chem):
 
 if __name__ == "__main__":
     chem_recipes = ChemRecipe().chems_recipes
-    chem_dict = {}
+    chem_names = ChemName()
 
+    chem_dict = {}
     chem_dict["Biological"] = Biological()
     chem_dict["Botany"] = Botany()
     chem_dict["Chemicals"] = Chemicals()
@@ -931,14 +1066,24 @@ if __name__ == "__main__":
     header_template = environment.get_template("page_header.j2")
     template = environment.get_template("chem_wiki_section.j2")
 
-    print(header_template.render())
+    full_body = f"{header_template.render()}\n"
 
     for chem_type, chem_class in chem_dict.items():
         chem_class.populate_recipes(chem_recipes)
 
-        output = template.render(
-            wiki_section=chem_type, chem_list=chem_class.chems.values()
+        full_body += (
+            template.render(wiki_section=chem_type, chem_list=chem_class.chems.values())
+            + "\n"
         )
-        print(output)
 
-    print("\n{{Guides Menu}}")
+    full_body += "\n{{Guides Menu}}"
+
+    for chem_class in chem_dict.values():
+        for chem_dict in chem_class.chems.values():
+            full_body = chem_names.replace_id_with_real_name(chem_dict, full_body)
+
+    if "$$" in full_body:
+        print(full_body)    # todo: remove
+        raise NotImplementedError("Not all chem ID placeholders replaced.")
+
+    print(full_body)
