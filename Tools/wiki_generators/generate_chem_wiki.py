@@ -67,6 +67,7 @@ class ChemName:
             f"{prefix}reagents/meta/consumable/food/condiments.ftl",
             f"{prefix}reagents/meta/consumable/food/food.ftl",
             f"{prefix}reagents/meta/consumable/food/ingredients.ftl",
+            f"{prefix}_CD/reagents/meta/medicine.ftl",
             f"{prefix}_DV/reagents/meta/biological.ftl",
             f"{prefix}_DV/reagents/meta/fun.ftl",
             f"{prefix}_DV/reagents/meta/consumable/drink/drinks.ftl",
@@ -265,6 +266,11 @@ class Chem:
                     effect_string += "Electrocutes the mob "
 
                 effect_string += self.condition_shim(effect)
+            
+            case "Paralyze":
+                effect_string += "Causes paralysis "
+
+                effect_string += self.condition_shim(effect)
 
             case "Drunk":
                 effect_string += "Causes drunkenness "
@@ -400,6 +406,11 @@ class Chem:
 
             case "SuppressAddiction":
                 effect_string += "Suppresses addiction "
+
+                effect_string += self.condition_shim(effect)
+
+            case "SuppressPain":
+                effect_string += "Suppresses pain "
 
                 effect_string += self.condition_shim(effect)
 
@@ -670,6 +681,7 @@ class ChemRecipe:
             f"{prefix}Recipes/Reactions/medicine.yml",
             f"{prefix}Recipes/Reactions/pyrotechnic.yml",
             f"{prefix}Recipes/Reactions/single_reagent.yml",
+            f"{prefix}_CD/Reactions/medicine.yml",
             f"{prefix}_DV/Recipes/Reactions/medicine.yml",
             f"{prefix}_Floof/Recipes/Reactions/medicine.yml",
             f"{prefix}_Funkystation/Recipes/Reactions/medicine.yml",
@@ -983,6 +995,7 @@ class Medicine(Chem):
         super().__init__()
         self.reagent_files = [
             "Resources/Prototypes/Reagents/medicine.yml",
+            "Resources/Prototypes/_CD/Reagents/medicine.yml",
             "Resources/Prototypes/_DV/Reagents/medicine.yml",
             "Resources/Prototypes/_Floof/Reagents/medicine.yml",
             "Resources/Prototypes/_Funkystation/Reagents/medicine.yml",
