@@ -77,7 +77,9 @@ class ChemName:
             f"{prefix}_NF/reagents/meta/consumable/drink/drinks.ftl",
             f"{prefix}_NF/reagents/meta/consumable/food/ingredients.ftl",
             f"{prefix}_Floof/reagents/meta/medicine.ftl",
+            f"{prefix}_Funkystation/reagents/meta/exotics.ftl",
             f"{prefix}_Funkystation/reagents/meta/medicine.ftl",
+            f"{prefix}_Funkystation/reagents/meta/toxins.ftl",
             f"{prefix}_Funkystation/reagents/meta/consumable/food/ingredients.ftl",
             f"{prefix}nyanotrasen/reagents/meta/consumable/drink/drink.ftl",
             f"{prefix}nyanotrasen/reagents/meta/consumable/food/ingredients.ftl",
@@ -266,7 +268,7 @@ class Chem:
                     effect_string += "Electrocutes the mob "
 
                 effect_string += self.condition_shim(effect)
-            
+
             case "Paralyze":
                 effect_string += "Causes paralysis "
 
@@ -477,18 +479,24 @@ class Chem:
         match condition.tag:
             case "ReagentThreshold":
                 reagent_id = condition.get("reagent")
+                max_amount = condition.get("max")
+                min_amount = condition.get("min")
+
+                if max_amount and min_amount:
+                    condition_string += (
+                        f"when there's at least {min_amount}u "
+                        f"and at most {max_amount}u "
+                    )
+                elif max_amount:
+                    condition_string += f"when there's at most {max_amount}u "
+                elif min_amount:
+                    condition_string += f"when there's at least {min_amount}u "
 
                 if reagent_id:
-                    condition_string += (
-                        f"when there's at least {condition.get("min", "?")}u "
-                        f"of $${reagent_id}$$ present "
-                    )
-
+                    condition_string += f"of $${reagent_id}$$ present "
                 else:
-                    condition_string += (
-                        f"when there's at least {condition.get("min", "?")}u "
-                        f"of this reagent "
-                    )
+                    condition_string += "of this reagent present "
+
             case "Temperature":
                 condition_string += "when the body's temperature is "
                 max_temp = condition.get("max")
@@ -682,14 +690,16 @@ class ChemRecipe:
             f"{prefix}Recipes/Reactions/pyrotechnic.yml",
             f"{prefix}Recipes/Reactions/single_reagent.yml",
             f"{prefix}_CD/Reactions/medicine.yml",
-            f"{prefix}_DV/Recipes/Reactions/medicine.yml",
-            f"{prefix}_Floof/Recipes/Reactions/medicine.yml",
-            f"{prefix}_Funkystation/Recipes/Reactions/medicine.yml",
-            f"{prefix}Nyanotrasen/Recipes/Reactions/drink.yml",
             f"{prefix}_DV/Recipes/Reactions/drinks.yml",
-            f"{prefix}_NF/Recipes/Reactions/drinks.yml",
-            f"{prefix}Nyanotrasen/Recipes/Reactions/food.yml",
+            f"{prefix}_DV/Recipes/Reactions/medicine.yml",
             f"{prefix}_DV/Recipes/Reactions/food.yml",
+            f"{prefix}_Floof/Recipes/Reactions/medicine.yml",
+            f"{prefix}_Funkystation/Recipes/Reactions/exotic.yml",
+            f"{prefix}_Funkystation/Recipes/Reactions/medicine.yml",
+            f"{prefix}_Funkystation/Recipes/Reactions/toxins.yml",
+            f"{prefix}_NF/Recipes/Reactions/drinks.yml",
+            f"{prefix}Nyanotrasen/Recipes/Reactions/drink.yml",
+            f"{prefix}Nyanotrasen/Recipes/Reactions/food.yml",
         ]
 
         for chem_recipe_file in chem_recipe_files:
@@ -929,6 +939,22 @@ class Elements(Chem):
         self.chems = dict(sorted(self.chems.items()))  # sort chems alphabetically
 
 
+class Exotic(Chem):
+    """
+    Represents exotic chems
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.reagent_files = [
+            "Resources/Prototypes/_Funkystation/Reagents/exotic.yml",
+        ]
+
+        self.read_in_chem_effect_files()
+        self.construct_chem_effect_bodies()
+        self.chems = dict(sorted(self.chems.items()))  # sort chems alphabetically
+
+
 class Foods(Chem):
     """
     Represents food chems
@@ -1047,6 +1073,7 @@ class Toxins(Chem):
         super().__init__()
         self.reagent_files = [
             "Resources/Prototypes/Reagents/toxins.yml",
+            "Resources/Prototypes/_Funkystation/Reagents/toxins.yml",
         ]
 
         self.read_in_chem_effect_files()
@@ -1065,6 +1092,7 @@ if __name__ == "__main__":
     chem_dict["Cleaning"] = Cleaning()
     chem_dict["Drinks"] = Drinks()
     chem_dict["Elements"] = Elements()
+    chem_dict["Exotic"] = Exotic()
     chem_dict["Foods"] = Foods()
     chem_dict["Fun"] = Fun()
     chem_dict["Gases"] = Gases()
